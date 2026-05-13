@@ -119,5 +119,4 @@ az bicep build --file infra/network.bicep
 
 ## Author
 
-**Kumail Janjua** — BSc Computer Science, 
-Microsoft Certified: Azure Fundamentals (AZ-900)
+**Kumail Janjua** 
