@@ -1,11 +1,16 @@
 // =============================================================
-// network.bicep — Azure VNet, Subnets, and NSG (sample IaC)
+// network.bicep — Azure VNet, Subnets, and NSGs (sample IaC)
 // =============================================================
 // Author : Kumail Janjua
 // Purpose: Codifies the networking layer of the proposed cloud
 //          architecture. Demonstrates the design-as-code principle:
 //          the architecture is implementable, version-controlled,
 //          and reproducible — not just diagrammed.
+//
+// Design : Three subnets, matching architecture.md
+//            1. Gateway subnet          — Application Gateway WAF v2 (dedicated, required)
+//            2. Application subnet      — App Service VNet integration (delegated)
+//            3. Private endpoint subnet — private endpoints for SQL and Blob Storage
 //
 // Validate locally:
 //   az bicep build --file network.bicep
@@ -31,10 +36,14 @@ param environment string = 'prod'
 param namePrefix string = 'ecom'
 
 // ---------- Variables ----------
-var vnetName        = '${namePrefix}-vnet-${environment}'
-var publicSubnet    = '${namePrefix}-public-subnet'
-var privateSubnet   = '${namePrefix}-private-subnet'
-var nsgName         = '${namePrefix}-public-nsg-${environment}'
+var vnetName          = '${namePrefix}-vnet-${environment}'
+var gatewaySubnetName = '${namePrefix}-appgw-subnet'
+var appSubnetName     = '${namePrefix}-app-subnet'
+var peSubnetName      = '${namePrefix}-pe-subnet'
+
+var gatewaySubnetPrefix = '10.10.1.0/24'
+var appSubnetPrefix     = '10.10.2.0/24'
+var peSubnetPrefix      = '10.10.3.0/24'
 
 var commonTags = {
   project:     'cloud-consulting-project'
@@ -43,11 +52,12 @@ var commonTags = {
   managedBy:   'Bicep'
 }
 
-// ---------- Network Security Group (public subnet) ----------
-// Least-privilege inbound rules: only HTTPS from the internet.
-// HTTP is allowed only to redirect to HTTPS at the App Service level.
-resource publicNsg 'Microsoft.Network/networkSecurityGroups@2023-11-01' = {
-  name:     nsgName
+// ---------- NSG: Application Gateway subnet ----------
+// Application Gateway v2 requires a dedicated subnet and will not deploy
+// unless the infrastructure ports below are reachable. Locking this NSG down
+// further than shown here is the most common cause of a failed AppGW deploy.
+resource gatewayNsg 'Microsoft.Network/networkSecurityGroups@2023-11-01' = {
+  name:     '${namePrefix}-appgw-nsg-${environment}'
   location: location
   tags:     commonTags
   properties: {
@@ -66,6 +76,7 @@ resource publicNsg 'Microsoft.Network/networkSecurityGroups@2023-11-01' = {
         }
       }
       {
+        // Port 80 exists only so the gateway can redirect to HTTPS.
         name: 'Allow-HTTP-Redirect'
         properties: {
           priority:                 110
@@ -76,6 +87,35 @@ resource publicNsg 'Microsoft.Network/networkSecurityGroups@2023-11-01' = {
           sourcePortRange:          '*'
           destinationAddressPrefix: '*'
           destinationPortRange:     '80'
+        }
+      }
+      {
+        // Required by Application Gateway v2 for health and configuration
+        // management. Source is the GatewayManager service tag, not the internet.
+        name: 'Allow-GatewayManager-Inbound'
+        properties: {
+          priority:                 120
+          direction:                'Inbound'
+          access:                   'Allow'
+          protocol:                 'Tcp'
+          sourceAddressPrefix:      'GatewayManager'
+          sourcePortRange:          '*'
+          destinationAddressPrefix: '*'
+          destinationPortRange:     '65200-65535'
+        }
+      }
+      {
+        // Required for the gateway's internal health probes.
+        name: 'Allow-AzureLoadBalancer-Inbound'
+        properties: {
+          priority:                 130
+          direction:                'Inbound'
+          access:                   'Allow'
+          protocol:                 '*'
+          sourceAddressPrefix:      'AzureLoadBalancer'
+          sourcePortRange:          '*'
+          destinationAddressPrefix: '*'
+          destinationPortRange:     '*'
         }
       }
       {
@@ -95,7 +135,98 @@ resource publicNsg 'Microsoft.Network/networkSecurityGroups@2023-11-01' = {
   }
 }
 
-// ---------- Virtual Network with public + private subnets ----------
+// ---------- NSG: Application subnet ----------
+// The App Service backend is never reached directly from the internet —
+// only from the gateway subnet.
+resource appNsg 'Microsoft.Network/networkSecurityGroups@2023-11-01' = {
+  name:     '${namePrefix}-app-nsg-${environment}'
+  location: location
+  tags:     commonTags
+  properties: {
+    securityRules: [
+      {
+        name: 'Allow-HTTPS-From-Gateway-Subnet'
+        properties: {
+          priority:                 100
+          direction:                'Inbound'
+          access:                   'Allow'
+          protocol:                 'Tcp'
+          sourceAddressPrefix:      gatewaySubnetPrefix
+          sourcePortRange:          '*'
+          destinationAddressPrefix: '*'
+          destinationPortRange:     '443'
+        }
+      }
+      {
+        name: 'Deny-Internet-Inbound'
+        properties: {
+          priority:                 4000
+          direction:                'Inbound'
+          access:                   'Deny'
+          protocol:                 '*'
+          sourceAddressPrefix:      'Internet'
+          sourcePortRange:          '*'
+          destinationAddressPrefix: '*'
+          destinationPortRange:     '*'
+        }
+      }
+    ]
+  }
+}
+
+// ---------- NSG: Private endpoint subnet ----------
+// Private endpoints for SQL and Blob Storage. Reachable only from the
+// application tier; no inbound internet path exists.
+resource peNsg 'Microsoft.Network/networkSecurityGroups@2023-11-01' = {
+  name:     '${namePrefix}-pe-nsg-${environment}'
+  location: location
+  tags:     commonTags
+  properties: {
+    securityRules: [
+      {
+        name: 'Allow-SQL-From-App-Subnet'
+        properties: {
+          priority:                 100
+          direction:                'Inbound'
+          access:                   'Allow'
+          protocol:                 'Tcp'
+          sourceAddressPrefix:      appSubnetPrefix
+          sourcePortRange:          '*'
+          destinationAddressPrefix: '*'
+          destinationPortRange:     '1433'
+        }
+      }
+      {
+        name: 'Allow-Storage-From-App-Subnet'
+        properties: {
+          priority:                 110
+          direction:                'Inbound'
+          access:                   'Allow'
+          protocol:                 'Tcp'
+          sourceAddressPrefix:      appSubnetPrefix
+          sourcePortRange:          '*'
+          destinationAddressPrefix: '*'
+          destinationPortRange:     '443'
+        }
+      }
+      {
+        name: 'Deny-Internet-Inbound'
+        properties: {
+          priority:                 4000
+          direction:                'Inbound'
+          access:                   'Deny'
+          protocol:                 '*'
+          sourceAddressPrefix:      'Internet'
+          sourcePortRange:          '*'
+          destinationAddressPrefix: '*'
+          destinationPortRange:     '*'
+        }
+      }
+    ]
+  }
+}
+
+// ---------- Virtual Network ----------
 resource vnet 'Microsoft.Network/virtualNetworks@2023-11-01' = {
   name:     vnetName
   location: location
@@ -108,24 +239,45 @@ resource vnet 'Microsoft.Network/virtualNetworks@2023-11-01' = {
     }
     subnets: [
       {
-        name: publicSubnet
+        // Dedicated to Application Gateway — the service cannot share a subnet
+        // with any other resource.
+        name: gatewaySubnetName
         properties: {
-          addressPrefix: '10.10.1.0/24'
+          addressPrefix: gatewaySubnetPrefix
           networkSecurityGroup: {
-            id: publicNsg.id
+            id: gatewayNsg.id
           }
         }
       }
       {
-        name: privateSubnet
+        // Delegated to App Service so VNet integration can inject outbound
+        // traffic from the web app into this subnet.
+        name: appSubnetName
         properties: {
-          addressPrefix: '10.10.2.0/24'
-          // Private subnet — no public NSG, no inbound internet access.
-          // Reachable only from the public subnet via App Service VNet integration.
-          serviceEndpoints: [
-            { service: 'Microsoft.Sql' }
-            { service: 'Microsoft.Storage' }
+          addressPrefix: appSubnetPrefix
+          networkSecurityGroup: {
+            id: appNsg.id
+          }
+          delegations: [
+            {
+              name: 'appservice-delegation'
+              properties: {
+                serviceName: 'Microsoft.Web/serverFarms'
+              }
+            }
           ]
+        }
+      }
+      {
+        // Private endpoints for Azure SQL Database and Blob Storage.
+        // Network policies are disabled so private endpoint NICs can be placed here.
+        name: peSubnetName
+        properties: {
+          addressPrefix: peSubnetPrefix
+          networkSecurityGroup: {
+            id: peNsg.id
+          }
+          privateEndpointNetworkPolicies: 'Disabled'
         }
       }
     ]
@@ -133,7 +285,8 @@ resource vnet 'Microsoft.Network/virtualNetworks@2023-11-01' = {
 }
 
 // ---------- Outputs ----------
-output vnetId          string = vnet.id
-output publicSubnetId  string = vnet.properties.subnets[0].id
-output privateSubnetId string = vnet.properties.subnets[1].id
-output nsgId           string = publicNsg.id
+output vnetId           string = vnet.id
+output gatewaySubnetId  string = vnet.properties.subnets[0].id
+output appSubnetId      string = vnet.properties.subnets[1].id
+output peSubnetId       string = vnet.properties.subnets[2].id
+output gatewayNsgId     string = gatewayNsg.id

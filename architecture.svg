@@ -1,0 +1,101 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 640" font-family="Segoe UI, Helvetica, Arial, sans-serif">
+  <rect width="1000" height="640" fill="#ffffff"/>
+
+  <text x="500" y="34" text-anchor="middle" font-size="19" font-weight="600" fill="#1a2b45">Proposed Azure Cloud Architecture — Secure &amp; Cost-Optimized Design</text>
+  <text x="500" y="55" text-anchor="middle" font-size="12" fill="#5a6b82">Single region · PaaS-first · WAF at the edge · private endpoints for data services</text>
+
+  <!-- Internet -->
+  <rect x="22" y="252" width="104" height="52" rx="26" fill="#eef2f7" stroke="#9aa9bd" stroke-width="1.5"/>
+  <text x="74" y="283" text-anchor="middle" font-size="13" fill="#33455e">Internet</text>
+
+  <!-- VNet boundary -->
+  <rect x="158" y="86" width="512" height="466" rx="8" fill="#f7fafd" stroke="#2f6fb5" stroke-width="2"/>
+  <text x="174" y="110" font-size="14" font-weight="600" fill="#2f6fb5">Azure Virtual Network — 10.10.0.0/16</text>
+
+  <!-- Gateway subnet -->
+  <rect x="182" y="126" width="464" height="102" rx="6" fill="#ffffff" stroke="#54a05e" stroke-width="1.5"/>
+  <rect x="286" y="140" width="256" height="58" rx="5" fill="#e8f3ec" stroke="#54a05e" stroke-width="1.5"/>
+  <text x="414" y="162" text-anchor="middle" font-size="13" font-weight="600" fill="#2c5c35">Application Gateway (WAF v2)</text>
+  <text x="414" y="181" text-anchor="middle" font-size="10.5" fill="#4a6b52">TLS termination · OWASP managed rules</text>
+  <text x="196" y="220" font-size="11" font-weight="600" fill="#3f7a48">Gateway subnet · 10.10.1.0/24 · dedicated</text>
+
+  <!-- App subnet -->
+  <rect x="182" y="248" width="464" height="102" rx="6" fill="#ffffff" stroke="#2f6fb5" stroke-width="1.5"/>
+  <rect x="286" y="262" width="256" height="58" rx="5" fill="#e6effa" stroke="#2f6fb5" stroke-width="1.5"/>
+  <text x="414" y="284" text-anchor="middle" font-size="13" font-weight="600" fill="#1e4c82">Azure App Service</text>
+  <text x="414" y="303" text-anchor="middle" font-size="10.5" fill="#42648c">VNet integrated · autoscale 1–3 instances</text>
+  <text x="196" y="342" font-size="11" font-weight="600" fill="#2f6fb5">Application subnet · 10.10.2.0/24 · delegated</text>
+
+  <!-- PE subnet -->
+  <rect x="182" y="370" width="464" height="156" rx="6" fill="#ffffff" stroke="#8a6bb5" stroke-width="1.5"/>
+  <rect x="206" y="384" width="196" height="52" rx="5" fill="#f0eaf8" stroke="#8a6bb5" stroke-width="1.5"/>
+  <text x="304" y="406" text-anchor="middle" font-size="11.5" font-weight="600" fill="#54407a">Private endpoint</text>
+  <text x="304" y="423" text-anchor="middle" font-size="10" fill="#6f5b91">to SQL Database</text>
+  <rect x="426" y="384" width="196" height="52" rx="5" fill="#f0eaf8" stroke="#8a6bb5" stroke-width="1.5"/>
+  <text x="524" y="406" text-anchor="middle" font-size="11.5" font-weight="600" fill="#54407a">Private endpoint</text>
+  <text x="524" y="423" text-anchor="middle" font-size="10" fill="#6f5b91">to Blob Storage</text>
+  <text x="414" y="460" text-anchor="middle" font-size="10" fill="#7b6b90">No inbound internet path · NSG denies all internet-sourced traffic</text>
+  <text x="414" y="476" text-anchor="middle" font-size="10" fill="#7b6b90">App Service reaches data services over private IPs only</text>
+  <text x="196" y="516" font-size="11" font-weight="600" fill="#6f5296">Private endpoint subnet · 10.10.3.0/24</text>
+
+  <!-- Platform services -->
+  <rect x="700" y="126" width="278" height="290" rx="8" fill="#fbfaf6" stroke="#b8a06a" stroke-width="1.5" stroke-dasharray="5,3"/>
+  <text x="716" y="148" font-size="12.5" font-weight="600" fill="#8a7038">Azure platform services</text>
+  <text x="716" y="164" font-size="10" fill="#9a8656">Not VNet resources — reached via private</text>
+  <text x="716" y="177" font-size="10" fill="#9a8656">endpoint or the Microsoft global endpoint</text>
+
+  <rect x="722" y="192" width="234" height="50" rx="5" fill="#ffffff" stroke="#b8a06a" stroke-width="1.5"/>
+  <text x="839" y="212" text-anchor="middle" font-size="12.5" font-weight="600" fill="#6d5824">Azure SQL Database</text>
+  <text x="839" y="229" text-anchor="middle" font-size="9.5" fill="#8a7442">GP serverless · TDE · geo-redundant backup</text>
+
+  <rect x="722" y="254" width="234" height="50" rx="5" fill="#ffffff" stroke="#b8a06a" stroke-width="1.5"/>
+  <text x="839" y="274" text-anchor="middle" font-size="12.5" font-weight="600" fill="#6d5824">Azure Blob Storage</text>
+  <text x="839" y="291" text-anchor="middle" font-size="9.5" fill="#8a7442">Static content · media · backups</text>
+
+  <rect x="722" y="316" width="234" height="50" rx="5" fill="#ffffff" stroke="#b8a06a" stroke-width="1.5"/>
+  <text x="839" y="336" text-anchor="middle" font-size="12.5" font-weight="600" fill="#6d5824">Azure Backup &amp; Recovery</text>
+  <text x="839" y="353" text-anchor="middle" font-size="9.5" fill="#8a7442">Geo-redundant · point-in-time restore</text>
+
+  <!-- Entra ID -->
+  <rect x="700" y="446" width="278" height="76" rx="8" fill="#fdf0f0" stroke="#c07070" stroke-width="1.5" stroke-dasharray="5,3"/>
+  <text x="839" y="470" text-anchor="middle" font-size="13" font-weight="600" fill="#8c3f3f">Microsoft Entra ID</text>
+  <text x="839" y="489" text-anchor="middle" font-size="10" fill="#a35c5c">Global identity service — outside the VNet</text>
+  <text x="839" y="505" text-anchor="middle" font-size="10" fill="#a35c5c">RBAC · MFA · Conditional Access · PIM</text>
+
+  <defs>
+    <marker id="ar" markerWidth="9" markerHeight="9" refX="8" refY="3.2" orient="auto">
+      <path d="M0,0 L0,6.4 L8.5,3.2 z" fill="#5a6b82"/>
+    </marker>
+    <marker id="arp" markerWidth="9" markerHeight="9" refX="8" refY="3.2" orient="auto">
+      <path d="M0,0 L0,6.4 L8.5,3.2 z" fill="#8a6bb5"/>
+    </marker>
+    <marker id="ard" markerWidth="9" markerHeight="9" refX="8" refY="3.2" orient="auto">
+      <path d="M0,0 L0,6.4 L8.5,3.2 z" fill="#c07070"/>
+    </marker>
+  </defs>
+
+  <!-- internet -> gateway -->
+  <path d="M126,278 L146,278 L146,169 L284,169" fill="none" stroke="#5a6b82" stroke-width="2" marker-end="url(#ar)"/>
+  <text x="152" y="160" font-size="10" fill="#5a6b82">HTTPS 443</text>
+
+  <!-- gateway -> app -->
+  <path d="M414,198 L414,260" fill="none" stroke="#5a6b82" stroke-width="2" marker-end="url(#ar)"/>
+
+  <!-- app -> private endpoints -->
+  <path d="M340,320 L340,382" fill="none" stroke="#5a6b82" stroke-width="2" marker-end="url(#ar)"/>
+  <path d="M490,320 L490,382" fill="none" stroke="#5a6b82" stroke-width="2" marker-end="url(#ar)"/>
+
+  <!-- private endpoints -> platform services -->
+  <path d="M402,398 L560,398 L560,217 L720,217" fill="none" stroke="#8a6bb5" stroke-width="1.8" marker-end="url(#arp)"/>
+  <path d="M622,410 L662,410 L662,279 L720,279" fill="none" stroke="#8a6bb5" stroke-width="1.8" marker-end="url(#arp)"/>
+
+  <!-- app -> entra -->
+  <path d="M542,291 L680,291 L680,484 L698,484" fill="none" stroke="#c07070" stroke-width="1.6" stroke-dasharray="4,3" marker-end="url(#ard)"/>
+  <text x="686" y="440" font-size="9.5" fill="#a35c5c" text-anchor="middle">managed identity</text>
+
+  <!-- footer -->
+  <rect x="22" y="566" width="956" height="56" rx="6" fill="#f4f6f9" stroke="#c3ccd9" stroke-width="1"/>
+  <text x="38" y="586" font-size="11" font-weight="600" fill="#3c4d66">Evaluated and rejected</text>
+  <text x="38" y="602" font-size="10.5" fill="#4f6076">Azure Firewall (~840 EUR/month) — egress filtering for a hub-and-spoke estate this design does not have; the WAF, NSGs and private endpoints already cover the perimeter.</text>
+  <text x="38" y="616" font-size="10.5" fill="#4f6076">Azure Load Balancer — layer 4 only, cannot front App Service. Front Door Standard and Premium were also priced. See cost-model.md for the full comparison.</text>
+</svg>
