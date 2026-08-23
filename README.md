@@ -31,15 +31,15 @@ Full requirements: [`requirements.md`](./requirements.md)
 
 ## Architecture Summary
 
-The solution is built around an **Azure Virtual Network (VNet)** segmented into public and private subnets. The web tier is fronted by an **Azure Load Balancer** and hosted on **Azure App Service**. Sensitive data lives in a private subnet with **Azure SQL Database** and **Blob Storage**, protected by **Azure Firewall** and **Network Security Groups (NSGs)**. **Microsoft Entra ID** handles identity and access, and **Azure Backup & Recovery Services** provides geo-redundant disaster recovery.
+The solution is built around an **Azure Virtual Network (VNet)** segmented into public and private subnets. The web tier is fronted by an **Azure Application Gateway (WAF v2)** and hosted on **Azure App Service**. **Azure SQL Database** and **Blob Storage** are reached over **private endpoints**, with **Network Security Groups (NSGs)** segmenting the VNet. **Microsoft Entra ID** handles identity and access, and **Azure Backup & Recovery Services** provides geo-redundant disaster recovery.
 
 ### Core Components
 
 | Layer | Service | Purpose |
 |-------|---------|---------|
-| Networking | Azure Virtual Network, NSG, Azure Firewall | Network isolation and perimeter security |
+| Networking | Azure Virtual Network, NSGs, private endpoints | Network segmentation and private service access |
 | Compute | Azure App Service | Managed PaaS hosting for the web application |
-| Traffic distribution | Azure Load Balancer | High availability across instances |
+| Ingress & WAF | Azure Application Gateway (WAF v2) | L7 routing, TLS termination, OWASP managed rules |
 | Data | Azure SQL Database | Transactional store for customer & order data |
 | Storage | Azure Blob Storage | Static content, backups, media files |
 | Identity | Microsoft Entra ID | RBAC, MFA, least-privilege access |
@@ -55,7 +55,7 @@ Full architecture detail: [`architecture.md`](./architecture.md)
 - **Least privilege access** — RBAC roles scoped narrowly, MFA enforced
 - **High availability** — load-balanced web tier, geo-redundant backups
 - **Cost optimization** — PaaS-first to minimize operational overhead, auto-scaling, reserved instances for predictable workloads
-- **Defense in depth** — network segmentation + firewall + NSGs + identity controls + encryption at rest and in transit
+- **Defense in depth** — WAF + network segmentation + NSGs + private endpoints + identity controls + encryption at rest and in transit
 
 ---
 
@@ -65,13 +65,18 @@ Estimated monthly Azure spend for the proposed architecture:
 
 | Resource | Service | Estimated Monthly Cost (EUR) |
 |----------|---------|------------------------------|
-| Web Application | Azure App Service | 120 |
-| Database | Azure SQL Database | 150 |
-| Storage | Azure Blob Storage | 40 |
-| Networking | VNet, Load Balancer, Firewall | 90 |
-| Security & Monitoring | Microsoft Defender for Cloud | 50 |
-| Backup & Recovery | Azure Backup Services | 30 |
-| **Total** | | **~480 EUR / month** |
+| Web application | Azure App Service (P0v3, autoscale) | 120 |
+| Database | Azure SQL Database (GP serverless) | 150 |
+| Storage | Azure Blob Storage (Hot, ~500 GB) | 40 |
+| Ingress & WAF | Application Gateway WAF v2 | 375 |
+| Networking | VNet, private endpoints, public IP | 25 |
+| Security & monitoring | Microsoft Defender for Cloud | 50 |
+| Backup & recovery | Azure Backup (geo-redundant) | 30 |
+| **Total** | | **~790 EUR / month** |
+
+**Azure Firewall was evaluated and rejected** — roughly 840 EUR/month for egress
+filtering a single-VNet PaaS workload that has no hub-and-spoke estate to filter.
+Front Door Standard and Premium were also priced.
 
 Optimization strategies, scaling assumptions and governance: [`cost-model.md`](./cost-model.md)
 
@@ -81,7 +86,7 @@ Optimization strategies, scaling assumptions and governance: [`cost-model.md`](.
 
 The networking layer of this design is codified in Bicep — Microsoft's native IaC language for Azure — to demonstrate that the architecture is implementable, not just diagrammed.
 
-📄 [`infra/network.bicep`](./infra/network.bicep) — Defines the VNet, public + private subnets, and an NSG with least-privilege inbound rules.
+📄 [`infra/network.bicep`](./infra/network.bicep) — Defines the VNet, the dedicated gateway subnet, the application and private-endpoint subnets, and an NSG with least-privilege inbound rules.
 
 Validate locally with the Azure CLI:
 
@@ -111,9 +116,9 @@ az bicep build --file infra/network.bicep
 
 **Cloud:** Microsoft Azure, Azure Networking, Azure PaaS services, Microsoft Entra ID
 **Architecture:** Cloud architecture design, security architecture, cost modelling
-**Security:** Zero Trust, Defense in depth, RBAC, MFA, network segmentation, GDPR awareness
+**Security:** Zero Trust, defense in depth, WAF / OWASP, RBAC, MFA, private endpoints, network segmentation, GDPR awareness
 **IaC:** Bicep (sample module), Azure CLI
-**Consulting:** Requirements gathering, executive reporting, business case writing
+**Consulting:** Requirements gathering, cost modelling, alternatives analysis, executive reporting
 
 ---
 
